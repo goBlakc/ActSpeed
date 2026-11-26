@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JoyLink</title>
+<style>
+:root{--bg:#14171c;--panel:#1d2229;--line:#323a45;--fg:#e8ecf1;--dim:#8d98a6;--nav:#4cc2ff;--type:#ffb454;--ok:#6fd08c;--bad:#ff6b6b}
+body.type{--accent:var(--type)} body.nav{--accent:var(--nav)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 "Segoe UI",system-ui,sans-serif}
+#bar{position:sticky;top:0;z-index:9;background:var(--panel);border-bottom:3px solid var(--accent);padding:10px 16px}
+#bar .r{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#pill{background:var(--accent);color:#111;font-weight:700;padding:2px 12px;border-radius:99px}
+#dot{width:10px;height:10px;border-radius:50%;background:var(--bad)} #dot.on{background:var(--ok)}
+#where{color:var(--dim);flex:1;min-width:140px}
+#line{font:20px/1.4 Consolas,monospace;margin:6px 0;white-space:pre;overflow:hidden;min-height:28px}
+#line i{display:inline-block;width:2px;height:1em;background:var(--accent);vertical-align:-2px;animation:b 1s steps(1) infinite}
+@keyframes b{50%{opacity:0}}
+#buf{color:var(--type);font-family:Consolas,monospace;margin-left:10px}
+#sug{display:flex;gap:8px;flex-wrap:wrap;min-height:30px}
+.s{border:1px solid var(--line);border-radius:6px;padding:2px 10px;font-family:Consolas,monospace}
+.s b{color:var(--type);margin-left:8px;font-weight:600}
+#hold{height:4px;background:var(--line);margin-top:8px;border-radius:2px;overflow:hidden}
+#hold div{height:100%;width:0;background:var(--accent)}
+main{max-width:960px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+h2{margin:0 0 10px;font-size:17px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+button{background:#262d36;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+button.on{background:var(--nav);color:#111;border-color:var(--nav)}
+[data-nav].focus{outline:3px solid var(--accent);outline-offset:2px}
+input[type=text]{background:#12151a;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:140px}
+input[type=range]{width:160px}
+#doc{white-space:pre-wrap;min-height:120px;background:#12151a;border-radius:8px;padding:10px;font:16px Consolas,monospace}
+#pad{position:relative;width:110px;height:110px;border:1px solid var(--line);border-radius:8px;background:#12151a}
+#ring{position:absolute;inset:0;margin:auto;border:1px dashed var(--line);border-radius:50%}
+#knob{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--accent);left:48px;top:48px}
+table{border-collapse:collapse;font:14px Consolas,monospace;margin:6px 0}
+td,th{border:1px solid var(--line);padding:3px 9px;text-align:center}
+th{color:var(--dim);font-weight:400} td.hl{background:#3a2f1a;color:var(--type)} td.sp{color:var(--dim)}
+small,.hint{color:var(--dim)}
+.net{border-top:1px solid var(--line);padding-top:8px}.nm{flex:1;font-weight:600}
+#cur{position:fixed;left:0;top:0;z-index:99;pointer-events:none;display:none}
+</style>
+</head>
+<body class="nav">
+<svg id="cur" width="22" height="22" viewBox="0 0 22 22"><path d="M2 2V17L6 13L9 20L12 19L9 12H15Z" fill="#fff" stroke="#000" stroke-width="1.5"/></svg>
+<header id="bar">
+  <div class="r"><span id="pill">NAVIGATION</span><span id="dot"></span><span id="where"></span><small id="hint"></small></div>
+  <div id="line"></div>
+  <div id="sug"></div>
+  <div id="hold"><div></div></div>
+</header>
+
+<main>
+<section>
+  <h2>Connection</h2>
+  <div class="row">
+    <button data-nav id="mWifi" class="on">Wireless</button>
+    <button data-nav id="mCable">Cable</button>
+  </div>
+  <div class="row"><label>ESP32 address <input type="text" id="ip" value="192.168.4.1"></label></div>
+  <div class="row"><button data-nav id="conn">Connect</button><span id="status" class="hint">Not connected</span></div>
+  <p class="hint">Cable mode needs Chrome or Edge. The first cable connection must be started with the mouse.</p>
+</section>
+
+<section>
+  <h2>Wi-Fi for the ESP32</h2>
+  <div class="row">
+    <input type="text" id="ssid" placeholder="Network name (SSID)" autocomplete="off">
+    <input type="text" id="pass" placeholder="Password" autocomplete="off">
+    <button data-nav id="save">Save network</button>
+  </div>
+  <div id="saved"></div>
+  <p class="hint" id="wmsg">Auto-connect sends the network to the ESP32 over the cable, or over its own JoyLink Wi-Fi when it has no working network. It remembers the last one. Passwords are stored in this browser only.</p>
+</section>
+
+<section>
+  <h2>Finger mouse</h2>
+  <p class="hint" id="mst">Waiting for the ESP32…</p>
+  <div class="row"><label>Speed <input data-nav type="range" id="ms" min="5" max="40" value="15"></label></div>
+  <div class="row"><button data-nav id="rot">Rotate: 0°</button><button data-nav id="mir">Mirror left/right</button></div>
+  <small>Move the finger mouse over a button to select it, then press the joystick to click. Use Rotate/Mirror until the cursor moves the way your finger does.</small>
+</section>
+
+<section>
+  <h2>Joystick tuning</h2>
+  <div id="pad"><div id="ring"></div><div id="knob"></div></div>
+  <div class="row"><label>Push needed <input data-nav type="range" id="th" min="35" max="85" value="55"> <span id="thv"></span></label></div>
+  <div class="row">
+    <button data-nav id="invX">Invert left/right</button>
+    <button data-nav id="invY">Invert up/down</button>
+    <button data-nav id="cal">Recalibrate centre</button>
+  </div>
+  <small>Hands off the stick when recalibrating. A move counts only when you push past the ring, hold briefly, and let go.</small>
+</section>
+
+<section style="grid-column:1/-1">
+  <h2>Text</h2>
+  <div id="doc"></div>
+  <div class="row"><button data-nav id="clr">Clear text</button></div>
+</section>
+
+<section style="grid-column:1/-1">
+  <h2>Typing codes</h2>
+  <p class="hint">Flick the stick (push, release) U / D / L / R. Press the button = space. In typing mode, press with half a code entered to cancel it. <b>LL + direction</b> picks a suggestion shown in the top bar. <b>RR + two flicks</b> opens the rare letters.</p>
+  <div id="charts"></div>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const store={get(k,d){try{return localStorage.getItem(k)??d}catch{return d}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+const S={mode:'nav',link:store.get('link','wireless'),cx:2048,cy:2048,th:+store.get('th',55)/100,
+  invX:store.get('invX')==='1',invY:store.get('invY')==='1',nx:0,ny:0,sw:false,rx:2048,ry:2048,connected:false,samples:0};
+$('#ip').value=store.get('ip','joylink.local');S.pc=false;
+
+/* ---------- typing tables ---------- */
+const D=['U','D','L','R'];
+const CODES={UU:'e',UD:'t',UL:'a',UR:'o',DU:'i',DD:'n',DL:'s',DR:'r',LU:'h',LD:'l',LR:'d',RU:'u',RD:'⌫',RL:'⏎'};
+const RARE={UU:'c',UD:'m',UL:'f',UR:'g',DU:'p',DD:'w',DL:'y',DR:'b',LU:'v',LD:'k',LL:'j',LR:'x',RU:'q',RD:'z',RL:',',RR:'.'};
+const WORDS=("the be to of and a in that have i it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is was are been has had were said did made find long down may part "+
+"hello yes help please thank thanks water home need food okay sorry love friend today tomorrow where why feel more very much here again right left stop open close light music play call message name").split(' ');
+let learned={};try{learned=JSON.parse(store.get('learned','{}'))}catch{}
+
+/* ---------- state: text, code buffer ---------- */
+let text='',buf='',bufT,sugs=[];
+const idx={U:0,D:1,L:2,R:3};
+function curWord(){const m=text.match(/[a-z']+$/i);return m?m[0].toLowerCase():''}
+function learn(w){if(w.length>1){learned[w]=(learned[w]||0)+1;store.set('learned',JSON.stringify(learned))}}
+function compute(){
+  const p=curWord(),all=[...new Set([...Object.keys(learned),...WORDS])];
+  sugs=all.filter(w=>w.startsWith(p)&&(w!==p||!p)).sort((a,b)=>(learned[b]||0)-(learned[a]||0)||WORDS.indexOf(a)-WORDS.indexOf(b)).slice(0,4);
+}
+function emit(c){
+  if(c==='⌫')text=text.slice(0,-1);
+  else{ if(/[^a-z']/i.test(c)){learn(curWord())} text+=c==='⏎'?'\n':c; }
+  render();
+}
+function typeFlick(d){
+  buf+=d;clearTimeout(bufT);bufT=setTimeout(()=>{buf='';render()},3000);
+  const n=buf.length,pre=buf.slice(0,2);
+  if(n===2&&CODES[buf]){emit(CODES[buf]);buf=''}
+  else if(n===2&&(buf==='LL'||buf==='RR')){}
+  else if(n===3&&pre==='LL'){const w=sugs[idx[d]];if(w){const p=curWord();learn(w);text=text.slice(0,text.length-p.length)+w+' '}buf=''}
+  else if(n===3&&pre==='RR'){}
+  else if(n===4&&pre==='RR'){emit(RARE[buf.slice(2)]);buf=''}
+  else buf='';
+  render();
+}
+function typeClick(){ if(buf){buf=''} else emit(' '); render(); }
+
+/* ---------- navigation ---------- */
+let focusEl=null;
+function setFocus(el,ns){focusEl?.classList.remove('focus');focusEl=el;el.classList.add('focus');if(!ns)el.scrollIntoView({block:'center',behavior:'smooth'});render()}
+function navFlick(d){
+  if(focusEl?.type==='range'&&(d==='L'||d==='R')){
+    focusEl.value=+focusEl.value+(d==='R'?5:-5);focusEl.dispatchEvent(new Event('input'));return}
+  const els=$$('[data-nav]'),f=focusEl.getBoundingClientRect(),fc=[f.x+f.width/2,f.y+f.height/2];
+  let best=null,bs=1e9;
+  for(const e of els){ if(e===focusEl)continue;
+    const r=e.getBoundingClientRect(),dx=r.x+r.width/2-fc[0],dy=r.y+r.height/2-fc[1];
+    const main=d==='U'?-dy:d==='D'?dy:d==='L'?-dx:dx, off=(d==='U'||d==='D')?Math.abs(dx):Math.abs(dy);
+    if(main<=4)continue; const sc=main+off*2; if(sc<bs){bs=sc;best=e}}
+  if(best)setFocus(best);
+}
+function navClick(){focusEl?.click()}
+
+/* ---------- gesture engine (delicate stick: threshold, dwell, release, lock-out) ---------- */
+const G={st:'idle',dir:null,t0:0,lock:0,holdFired:false};
+const DWELL=70, MAXFLICK=1000, HOLD_MS=5000, LOCK=140;
+function dirOf(x,y){const ax=Math.abs(x),ay=Math.abs(y);
+  if(ax>ay*1.5)return x>0?'R':'L'; if(ay>ax*1.5)return y>0?'D':'U'; return null}
+function gesture(now){
+  const mag=Math.max(Math.abs(S.nx),Math.abs(S.ny)),on=S.th,off=S.th*0.45,d=dirOf(S.nx,S.ny);
+  if(G.st==='idle'){
+    if(now<G.lock)return;
+    if(mag>on&&d){G.st='pend';G.dir=d;G.t0=now}
+  }else if(G.st==='pend'){
+    if(mag<off||d!==G.dir&&d){G.st='idle';G.lock=now+LOCK}   // jitter: ignore
+    else if(now-G.t0>=DWELL&&d===G.dir){G.st='active';G.t0=now}
+  }else if(G.st==='active'){
+    const held=now-G.t0;
+    if(G.dir==='U'&&held>MAXFLICK&&mag>off){
+      const p=Math.min(1,held/HOLD_MS);$('#hold div').style.width=p*100+'%';
+      if(held>=HOLD_MS&&!G.holdFired){G.holdFired=true;toggleMode()}
+    }
+    if(mag<off){
+      $('#hold div').style.width='0';
+      if(!G.holdFired&&held<MAXFLICK)flick(G.dir);
+      G.st='idle';G.lock=now+LOCK;G.holdFired=false;
+    }
+  }
+}
+function flick(d){S.mode==='nav'?navFlick(d):typeFlick(d)}
+let swDown=false,swT=0;
+function button(now){
+  if(S.sw&&!swDown&&now-swT>250){swDown=true;swT=now;S.mode==='nav'?navClick():typeClick()}
+  if(!S.sw&&swDown&&now-swT>40)swDown=false;
+}
+function toggleMode(){
+  S.mode=S.mode==='nav'?'type':'nav';buf='';
+  document.body.className=S.mode;navigator.vibrate?.(80);render();
+}
+
+/* ---------- incoming data ---------- */
+function onLine(l){
+  const p=l.trim().split(',');
+  if(p[0]==='IP'){$('#ip').value=p[1];store.set('ip',p[1]);$('#wmsg').textContent='ESP32 is on your Wi-Fi at '+p[1]+'. Switch to Wireless and connect.';return}
+  if(p[0]==='ERR'){$('#wmsg').textContent='The ESP32 could not join that network. Check the name and password.';return}
+  if(p[0]==='M'){if(!S.pc)onMouse(+p[1],+p[2]);return}
+  if(p[0]!=='J'||p.length<4)return;
+  const pc=p[5]==='1';if(pc!==S.pc){S.pc=pc;G.st='idle';render()}
+  if(p[4]!==undefined&&p[4]!==lastMs){lastMs=p[4];$('#mst').textContent=p[4]==='1'?'Mouse sensor detected.':'Mouse sensor not responding. Check the C/D wires and power it from 3V3.'}
+  const x=+p[1],y=+p[2],now=performance.now();
+  S.sw=p[3]==='1';S.samples++;
+  if(S.samples<=15){S.cx=x;S.cy=y}                 // auto-centre on connect (stick at rest)
+  const a=0.45;S.rx=S.rx+(x-S.rx)*a;S.ry=S.ry+(y-S.ry)*a;   // smoothing
+  S.nx=Math.max(-1,Math.min(1,(S.rx-S.cx)/1800))*(S.invX?-1:1);
+  S.ny=Math.max(-1,Math.min(1,(S.ry-S.cy)/1800))*(S.invY?-1:1);
+  const k=$('#knob');k.style.left=48+S.nx*48+'px';k.style.top=48+S.ny*48+'px';
+  if(!S.pc){gesture(now);button(now)}
+}
+
+/* ---------- connections ---------- */
+let es=null,port=null,reader=null,writer=null,stopRead=false;
+function setStatus(ok,msg){S.connected=ok;$('#dot').classList.toggle('on',ok);$('#status').textContent=msg;$('#conn').textContent=ok?'Disconnect':'Connect';render()}
+function connectWifi(){
+  const url='http://'+$('#ip').value.trim()+'/events';store.set('ip',$('#ip').value.trim());
+  S.samples=0;es=new EventSource(url);setStatus(false,'Connecting to '+url+' …');
+  es.onopen=()=>setStatus(true,'Connected (wireless)');
+  es.onmessage=e=>onLine(e.data);
+  es.onerror=()=>setStatus(false,'No signal – is your PC on the JoyLink Wi-Fi? Retrying…');
+}
+async function connectCable(p){
+  if(!('serial' in navigator)){setStatus(false,'Web Serial not supported – use Chrome or Edge');return}
+  try{
+    port=p||await navigator.serial.requestPort();
+    await port.open({baudRate:115200});S.samples=0;stopRead=false;setStatus(true,'Connected (cable)');
+    const enc=new TextEncoderStream();enc.readable.pipeTo(port.writable).catch(()=>{});writer=enc.writable.getWriter();
+    setTimeout(()=>{if(S.connected&&!S.samples)setStatus(true,'Port open but no data. Close the Arduino Serial Monitor and check that USB CDC On Boot is Enabled.')},3000);
+    const dec=new TextDecoderStream();port.readable.pipeTo(dec.writable).catch(()=>{});
+    reader=dec.readable.getReader();let acc='';
+    while(!stopRead){const {value,done}=await reader.read();if(done)break;
+      acc+=value;let i;while((i=acc.indexOf('\n'))>=0){onLine(acc.slice(0,i));acc=acc.slice(i+1)}}
+  }catch(e){setStatus(false,'Cable error: '+e.message)}
+}
+async function disconnect(){
+  es?.close();es=null;stopRead=true;
+  try{await reader?.cancel()}catch{} try{await writer?.close()}catch{} try{await port?.close()}catch{}
+  port=null;reader=null;writer=null;setStatus(false,'Not connected');
+}
+$('#conn').onclick=()=>S.connected||es?disconnect():(S.link==='wireless'?connectWifi():connectCable());
+function setLink(l){S.link=l;store.set('link',l);$('#mWifi').classList.toggle('on',l==='wireless');$('#mCable').classList.toggle('on',l==='cable');$('#ip').disabled=l==='cable'}
+$('#mWifi').onclick=()=>{disconnect();setLink('wireless')};
+$('#mCable').onclick=()=>{disconnect();setLink('cable')};
+
+/* ---------- saved Wi-Fi networks ---------- */
+let nets=[];try{nets=JSON.parse(store.get('nets','[]'))}catch{}
+const saveNets=()=>store.set('nets',JSON.stringify(nets));
+function renderNets(){
+  const box=$('#saved');box.innerHTML='';
+  if(!nets.length)box.innerHTML='<p class="hint">No saved networks yet.</p>';
+  nets.forEach((n,i)=>{
+    const r=document.createElement('div');r.className='row net';
+    const nm=document.createElement('span');nm.className='nm';nm.textContent=n.s;
+    const c=document.createElement('button');c.setAttribute('data-nav','');c.textContent='Auto-connect';c.onclick=()=>sendCreds(n);
+    const f=document.createElement('button');f.setAttribute('data-nav','');f.textContent='Forget';
+    f.onclick=()=>{nets.splice(i,1);saveNets();renderNets();setFocus($('#save'))};
+    r.append(nm,c,f);box.append(r);
+  });
+}
+$('#save').onclick=()=>{
+  const s=$('#ssid').value.trim(),p=$('#pass').value;
+  if(!s){$('#wmsg').textContent='Type the network name first.';return}
+  const i=nets.findIndex(n=>n.s===s);i>=0?nets[i].p=p:nets.push({s,p});
+  saveNets();$('#ssid').value=$('#pass').value='';renderNets();$('#wmsg').textContent='Saved '+s+'.';
+};
+async function sendCreds(n){
+  const m=$('#wmsg'),e=encodeURIComponent;
+  if(writer){await writer.write(`W,${e(n.s)},${e(n.p)}\n`);m.textContent='Sent over the cable. Waiting for the ESP32 to join '+n.s+' …';return}
+  try{await fetch(`http://192.168.4.1/wifi?s=${e(n.s)}&p=${e(n.p)}`,{mode:'no-cors'});
+    m.textContent='Sent. Put your PC back on your normal Wi-Fi, then connect Wireless to joylink.local.'}
+  catch{m.textContent='Could not reach the ESP32. Connect the cable, or join the JoyLink Wi-Fi first.'}
+}
+
+/* ---------- finger mouse: moves a virtual cursor; hovering a button selects it, joystick press clicks ---------- */
+let lastMs='',ms=+store.get('ms',15)/10,rot=+store.get('rot',0),mir=store.get('mir')==='1';
+const cur={x:innerWidth/2,y:innerHeight/2};
+function onMouse(dx,dy){
+  if(mir)dx=-dx;
+  for(let i=0;i<rot;i++)[dx,dy]=[-dy,dx];
+  cur.x=Math.max(0,Math.min(innerWidth-2,cur.x+dx*ms));
+  cur.y=Math.max(0,Math.min(innerHeight-2,cur.y+dy*ms));
+  const c=$('#cur');c.style.display='block';c.style.transform=`translate(${cur.x}px,${cur.y}px)`;
+  if(cur.y>innerHeight-40)scrollBy(0,14);else if(cur.y<$('#bar').offsetHeight+24)scrollBy(0,-14);
+  const el=document.elementFromPoint(cur.x,cur.y)?.closest('[data-nav]');
+  if(el&&el!==focusEl)setFocus(el,true);
+}
+$('#ms').value=ms*10;$('#ms').oninput=e=>{ms=e.target.value/10;store.set('ms',e.target.value)};
+$('#rot').textContent='Rotate: '+rot*90+'°';
+$('#rot').onclick=e=>{rot=(rot+1)%4;store.set('rot',rot);e.target.textContent='Rotate: '+rot*90+'°'};
+$('#mir').classList.toggle('on',mir);
+$('#mir').onclick=e=>{mir=!mir;store.set('mir',mir?1:0);e.target.classList.toggle('on',mir)};
+
+/* ---------- settings ---------- */
+$('#th').value=S.th*100;
+$('#th').oninput=e=>{S.th=e.target.value/100;store.set('th',e.target.value);$('#thv').textContent=Math.round(S.th*100)+'%';ring()};
+function ring(){const r=$('#ring'),s=S.th*96;r.style.width=r.style.height=s+'px'}
+$('#invX').onclick=e=>{S.invX=!S.invX;store.set('invX',S.invX?1:0);e.target.classList.toggle('on',S.invX)};
+$('#invY').onclick=e=>{S.invY=!S.invY;store.set('invY',S.invY?1:0);e.target.classList.toggle('on',S.invY)};
+$('#cal').onclick=()=>{S.cx=S.rx;S.cy=S.ry};
+$('#clr').onclick=()=>{text='';render()};
+
+/* ---------- rendering ---------- */
+function chart(title,map){
+  let h=`<table><tr><th>${title}</th>${D.map(d=>`<th>${d}</th>`).join('')}</tr>`;
+  D.forEach(a=>{h+=`<tr><th>${a}</th>`+D.map(b=>{const k=a+b,v=map[k];
+    return `<td data-k="${title==='first\\second'?'':'RR'}${k}"${v?'':' class="sp"'}>${v??(map===CODES?(k==='LL'?'sugg':'rare'):'')}</td>`}).join('')+'</tr>'});
+  return h+'</table>';
+}
+function render(){
+  const nav=S.mode==='nav';
+  $('#pill').textContent=S.pc?'LAPTOP MODE':nav?'NAVIGATION':'TYPING';
+  $('#hint').textContent=S.pc?'Bluetooth: stick + mouse control the laptop. Hold stick RIGHT 5 s to come back.':nav?'hold UP 5 s → typing · hold RIGHT 5 s → laptop':'hold UP 5 s → navigation';
+  $('#where').textContent=nav?'On: '+(focusEl?.textContent.trim()||focusEl?.id||'…').slice(0,40):'';
+  const tail=text.split('\n').pop().slice(-45);
+  $('#line').innerHTML=nav?(text?'<span style="color:var(--dim)">'+tail.replace(/</g,'&lt;')+'</span>':'<span style="color:var(--dim)">(nothing typed yet)</span>'):
+    tail.replace(/</g,'&lt;')+'<i></i><span id="buf">'+buf+'</span>';
+  compute();
+  $('#sug').innerHTML=nav?'':sugs.map((w,i)=>`<span class="s">${w}<b>LL${D[i]}</b></span>`).join('');
+  $('#doc').textContent=text;
+  $$('#charts td').forEach(td=>{const k=td.dataset.k||'';td.classList.toggle('hl',!nav&&buf&&k.startsWith(buf))});
+}
+$('#charts').innerHTML=chart('first\\second',CODES)+'<p class="hint">Rare letters: RR then …</p>'+chart('RR+',RARE);
+$$('#charts td').forEach((td,i)=>{});
+setLink(S.link);$('#thv').textContent=Math.round(S.th*100)+'%';ring();
+$('#invX').classList.toggle('on',S.invX);$('#invY').classList.toggle('on',S.invY);
+renderNets();setFocus($('#conn'));
+
+/* keyboard fallback for testing without the stick: arrows = flick, Enter = press */
+addEventListener('keydown',e=>{const m={ArrowUp:'U',ArrowDown:'D',ArrowLeft:'L',ArrowRight:'R'}[e.key];
+  if(m){e.preventDefault();flick(m)}else if(e.key==='Enter'&&e.target.tagName!=='BUTTON'){S.mode==='nav'?navClick():typeClick()}
+  else if(e.key==='Tab'&&e.shiftKey&&e.altKey)toggleMode()});
+if(S.link==='cable'&&'serial' in navigator)navigator.serial.getPorts().then(p=>p[0]&&connectCable(p[0]));
+render();
+</script>
+</body>
+</html>
